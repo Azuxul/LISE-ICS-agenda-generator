@@ -8,9 +8,17 @@ import re
 import os
 from pathlib import Path
 import time
+from datetime import datetime, timedelta
+import xmltodict
+import ics
 
 EDT_SELECT_URL = 'https://lise.ensam.eu/faces/ChoixPlanning.xhtml'
 EDT_URL = 'https://lise.ensam.eu/faces/Planning.xhtml'
+
+
+def get_monday(datetime_of_week: datetime):
+    t = datetime(datetime_of_week.year, datetime_of_week.month, datetime_of_week.day)
+    return t - timedelta(days=t.weekday())
 
 
 session = requests.Session()
@@ -31,9 +39,10 @@ headers = {
 # Arrivée 
 rep = session.get(EDT_SELECT_URL)
 javax_faces_ViewState = BeautifulSoup(rep.text, features='html5lib').find(id='j_id1:javax.faces.ViewState:0')['value']
-print(javax_faces_ViewState)
 
-time.sleep(0.5)
+print("page 1")
+#time.sleep(2)
+
 
 data = {
     'form': 'form',
@@ -52,7 +61,9 @@ data = {
 # Menu data 
 rep = session.post(EDT_SELECT_URL, data=data, headers=headers)
 
-time.sleep(0.5)
+#print(rep.text)
+#time.sleep(2)
+
 
 data = {
     'form': 'form',
@@ -67,11 +78,11 @@ data = {
 
 # Menu click
 rep = session.post(EDT_SELECT_URL, data=data, headers=headers)
-#print(rep.text)
 javax_faces_ViewState = BeautifulSoup(rep.text, features='html5lib').find(id='j_id1:javax.faces.ViewState:0')['value']
-print(javax_faces_ViewState)
 
-time.sleep(0.5)
+print("3")
+#print(rep.text)
+#time.sleep(2)
 
 
 data = {
@@ -92,21 +103,30 @@ data = {
     'form:j_idt180:j_idt189:filter': '',
     'form:j_idt180:j_idt191:filter': '',
     'form:j_idt180_checkbox': 'on',
-    'form:j_idt180_selection': '47711527',
-    'form:j_idt239': '',
-    'form:j_idt249_focus': '',
-    'form:j_idt249_input': '44323',
+    'form:j_idt180_selection': '47711527,47711585,47711577', # 47652028,47711585
+    'form:j_idt237': '',
+    'form:j_idt247_focus': '',
+    'form:j_idt247_input': '44323',
     'javax.faces.ViewState': javax_faces_ViewState
 }
 
 # EDT select
 rep = session.post(EDT_SELECT_URL, data=data, headers=headers)
+#print(rep.text)
+#print(rep.url)
 javax_faces_ViewState = BeautifulSoup(rep.text, features='html5lib').find(id='j_id1:javax.faces.ViewState:0')['value']
-print(javax_faces_ViewState)
-print(rep.text)
-print(rep.url)
-time.sleep(0.5)
+print("4")
+#time.sleep(2)
 
+date = datetime.now()
+
+t_start = int(date.timestamp())
+start = str(t_start) + "000"
+end = str(t_start+432000000) + "000"
+
+date_input = str(date.day) + "/" + str(date.month) + "/" + str(date.day)
+iso_date = date.isocalendar()
+week = str(iso_date[1]) + "-" + str(iso_date[0])
 
 data = {
     'form': 'form',
@@ -118,10 +138,10 @@ data = {
     'javax.faces.partial.execute': 'form:j_idt117',
     'javax.faces.partial.render': 'form:j_idt117',
     'form:j_idt117': 'form:j_idt117',
-    'form:j_idt117_start': '1599429600000',
-    'form:j_idt117_end': '1599861600000',
-    'form:date_input': '07/09/2020',
-    'form:week': '37-2020',
+    'form:j_idt117_start': start,
+    'form:j_idt117_end': end,
+    'form:date_input': date_input,
+    'form:week': week,
     'form:j_idt117_view': 'agendaWeek',
     'form:offsetFuseauNavigateur': '-7200000',
     'form:onglets_activeIndex': '0',
@@ -145,6 +165,40 @@ headers = {
 }
 
 rep = session.post(EDT_URL, data=data, headers=headers)
-print(rep.text)
 
+result = xmltodict.parse(rep.text)
+json_str = result['partial-response']['changes']['update'][1]['#text']
+#print(json_str)
+json_result = json.loads(json_str)
+#print(json_result)
 
+allowed_groups = ['5GIM CM', '5GIE TP22', '5GIE ED2']
+
+calendar = ics.Calendar()
+
+for event in json_result['events']:
+
+    data = event['title'].split(' - ')
+
+    groups = data[-1].split(' / ')
+
+    valid_event = False
+
+    for a_group in allowed_groups:
+        if a_group in groups:
+            valid_event = True
+            break
+
+    print(event)
+    if valid_event:
+#        print(event)
+        ics_event = ics.Event()
+        ics_event.name = data[1] + " - " + data[2] + " - " + data[4]
+        ics_event.organizer = data[3]
+        ics_event.begin = event['start']
+        ics_event.end = event['end']
+        
+        calendar.events.add(ics_event)
+
+with open('my.ics', 'w') as my_file:
+    my_file.writelines(calendar)
