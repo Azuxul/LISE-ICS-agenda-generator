@@ -15,6 +15,8 @@ import ics
 EDT_SELECT_URL = 'https://lise.ensam.eu/faces/ChoixPlanning.xhtml'
 EDT_URL = 'https://lise.ensam.eu/faces/Planning.xhtml'
 
+EDT_SELECTION = [60745372, 60745322, 60745364] # Obtained from https://lise.ensam.eu/faces/Planning.xhtml by getting the value from the feild form:j_idt181_selection in the request
+ALLOWED_GROUPS = ['7GIE CM', '7GIE TP22', '7GIE ED2']
 
 def get_monday(datetime_of_week: datetime):
     t = datetime(datetime_of_week.year, datetime_of_week.month, datetime_of_week.day)
@@ -84,6 +86,10 @@ print("3")
 #print(rep.text)
 #time.sleep(2)
 
+# idt numbers values can change very offten (example value : form:j_idt180_reflowDD)
+idt_1 = 181
+idt_2 = 240
+idt_3 = 250
 
 data = {
     'form': 'form',
@@ -97,16 +103,16 @@ data = {
     'form:input-nombre-fin': '',
     'form:calendarDebut_input': '',
     'form:calendarFin_input': '',
-    'form:j_idt180_reflowDD': '0_0',
-    'form:j_idt180:j_idt185:filter': '',
-    'form:j_idt180:j_idt187:filter': '',
-    'form:j_idt180:j_idt189:filter': '',
-    'form:j_idt180:j_idt191:filter': '',
-    'form:j_idt180_checkbox': 'on',
-    'form:j_idt180_selection': '47711527,47711585,47711577', # 47652028,47711585
-    'form:j_idt237': '',
-    'form:j_idt247_focus': '',
-    'form:j_idt247_input': '44323',
+    'form:j_idt'+str(idt_1)+'_reflowDD': '0_0',
+    'form:j_idt'+str(idt_1)+':j_idt185:filter': '',
+    'form:j_idt'+str(idt_1)+':j_idt187:filter': '',
+    'form:j_idt'+str(idt_1)+':j_idt189:filter': '',
+    'form:j_idt'+str(idt_1)+':j_idt191:filter': '',
+    'form:j_idt'+str(idt_1)+'_checkbox': 'on',
+    'form:j_idt'+str(idt_1)+'_selection': ",".join(str(x) for x in EDT_SELECTION), 
+    'form:j_idt'+str(idt_2): '',
+    'form:j_idt'+str(idt_3)+'_focus': '',
+    'form:j_idt'+str(idt_3)+'_input': '44323',
     'javax.faces.ViewState': javax_faces_ViewState
 }
 
@@ -167,12 +173,11 @@ headers = {
 rep = session.post(EDT_URL, data=data, headers=headers)
 
 result = xmltodict.parse(rep.text)
+print(result)
 json_str = result['partial-response']['changes']['update'][1]['#text']
 #print(json_str)
 json_result = json.loads(json_str)
 #print(json_result)
-
-allowed_groups = ['5GIM CM', '5GIE TP22', '5GIE ED2']
 
 calendar = ics.Calendar()
 
@@ -184,7 +189,7 @@ for event in json_result['events']:
 
     valid_event = False
 
-    for a_group in allowed_groups:
+    for a_group in ALLOWED_GROUPS:
         if a_group in groups:
             valid_event = True
             break
@@ -202,3 +207,4 @@ for event in json_result['events']:
 
 with open('my.ics', 'w') as my_file:
     my_file.writelines(calendar)
+	
